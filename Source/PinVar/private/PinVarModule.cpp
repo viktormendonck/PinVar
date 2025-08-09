@@ -121,9 +121,6 @@ void FPinVarModule::ScanPinnedVariables()
 	{
 		if (GroupStr.IsEmpty()) return;
 
-		// Allow both "A,B" and "A|B"
-		GroupStr.ReplaceCharInline(TEXT('|'), TEXT(','));
-
 		TArray<FString> RawGroups;
 		GroupStr.ParseIntoArray(RawGroups, TEXT(","), /*CullEmpty*/ true);
 
