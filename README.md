@@ -4,13 +4,9 @@ A UE5.6 editor plugin that lets you quickly view and edit **Blueprint Class Defa
 
 ## Features
 - **Custom grouping** of variables using `PinnedGroup` metadata.
-- Expandable/collapsible groups (closed by default).
-- Multiple groups per variable (separate with commas `,`).
-- Refresh button to rescan variables.
-- Scrollable list for large sets.
-- Automatically ignores:
-  - `SKEL_` and `REINST_` classes
-  - Pure C++ classes (only scans Blueprints and BP-derived classes)
+- Expandable/collapsible groups.
+- Multiple groups per variable, separate with commas `,`.
+
 
 ## Installation
 1. Download or clone this repository.
