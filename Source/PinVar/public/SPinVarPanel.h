@@ -12,9 +12,9 @@ class SPinVarPanel : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SPinVarPanel) {}
 	SLATE_EVENT(FSimpleDelegate, OnRefreshRequested)
-SLATE_END_ARGS()
+	SLATE_END_ARGS()
 
-void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs);
 	void Refresh();
 
 private:
@@ -26,12 +26,10 @@ private:
 	void ShowVariableGroupDialog(UBlueprint* BP);
 	FReply OnRemoveBlueprintVariableClicked();
 	void   ShowRemoveStagedDialog();
-	
+
 	struct FEntry { FName Group; TSharedRef<SWidget> Widget; };
 	TMap<FName, TArray<FEntry>> Grouped;
 
 	void Rebuild();
 	void GatherPinnedProperties();
 };
-
-

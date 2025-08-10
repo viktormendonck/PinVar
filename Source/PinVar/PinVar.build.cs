@@ -2,25 +2,34 @@ using UnrealBuildTool;
 
 public class PinVar : ModuleRules
 {
-    public PinVar(ReadOnlyTargetRules Target) : base(Target)
-    {
-        PrivateDependencyModuleNames.AddRange(new string[] { "AppFramework", "Json", "JsonUtilities","Projects" });
-        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	public PinVar(ReadOnlyTargetRules Target) : base(Target)
+	{
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[]
-        {
-            "Core",
-            "CoreUObject",
-            "Engine",
-            "Slate",
-            "SlateCore",
-            "EditorSubsystem",
-            "UnrealEd",
-            "LevelEditor",
-            "PropertyEditor",
-            "AssetRegistry",
-            "ToolMenus",
-            "InputCore" 
-        });
-    }
+		PublicDependencyModuleNames.AddRange(new string[]
+		{
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"Slate",
+			"SlateCore",
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"AppFramework",
+			"EditorSubsystem",
+			"UnrealEd",
+			"LevelEditor",
+			"ToolMenus",
+			"PropertyEditor",
+			"ContentBrowser",
+			"InputCore",
+			"Kismet",
+			"Json",
+			"JsonUtilities",
+			"Projects",
+			"AssetRegistry"
+		});
+	}
 }
