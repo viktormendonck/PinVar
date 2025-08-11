@@ -15,8 +15,6 @@ private:
 
     void RegisterMenus();
     void UnregisterMenus();
-
-    // Refreshes from JSON (no class/property scanning)
     void ScanPinnedVariables();
 
 private:

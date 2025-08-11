@@ -13,6 +13,7 @@ public class PinVar : ModuleRules
 			"Engine",
 			"Slate",
 			"SlateCore",
+			"ToolWidgets"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

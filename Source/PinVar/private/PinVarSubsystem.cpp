@@ -5,8 +5,7 @@
 #include "Blueprint/BlueprintSupport.h"
 #include "Engine/BlueprintGeneratedClass.h"
 
-// --- helpers ---
-static bool ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName Group, FName Comp)
+bool UPinVarSubsystem::ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName Group, FName Comp)
 {
 	for (const FPinnedVariable& E : Arr)
 	{
@@ -16,7 +15,6 @@ static bool ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName 
 	return false;
 }
 
-// --- lifecycle ---
 void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -25,8 +23,6 @@ void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	RepopulateSessionCacheAll();
 }
 
-
-
 void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
 {
 	TArray<FPinnedVariable>& Vars = StagedPinnedGroups.FindOrAdd(ClassName);
@@ -34,7 +30,7 @@ void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FNa
 	{
 		Vars.Add(FPinnedVariable(VariableName, GroupName, ComponentTemplateName));
 	}
-	this->SaveToDisk();
+	SaveToDisk();
 }
 
 
@@ -49,7 +45,7 @@ void UPinVarSubsystem::StagePinVariableWithTemplate(FName ClassName, FName Varia
 		E.ResolvedTemplate = TemplatePtr;
 		Vars.Add(MoveTemp(E));
 	}
-	this->SaveToDisk();
+	SaveToDisk();
 }
 
 bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
@@ -68,7 +64,7 @@ bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, F
 		{
 			StagedPinnedGroups.Remove(ClassName);
 		}
-		this->SaveToDisk();
+		SaveToDisk();
 		return Removed > 0;
 	}
 	return false;
@@ -112,24 +108,27 @@ void UPinVarSubsystem::RepopulateSessionCacheAll()
 				{
 					for (UClass* C = Cls; C; C = C->GetSuperClass())
 					{
-						if (UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(C))
+						UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(C);
+						if (!BPGC) continue;
+
+						UBlueprint* OwnerBP = Cast<UBlueprint>(BPGC->ClassGeneratedBy);
+						if (!OwnerBP) continue;
+
+						USimpleConstructionScript* SCS = OwnerBP->SimpleConstructionScript;
+						if (!SCS) continue;
+
+						for (USCS_Node* Node : SCS->GetAllNodes())
 						{
-							if (UBlueprint* OwnerBP = Cast<UBlueprint>(BPGC->ClassGeneratedBy))
+							if (!Node || Node->GetVariableName() != E.ComponentVariablePrettyName) continue;
+
+							Found = Node->GetActualComponentTemplate(BPGC);
+							if (!Found) 
 							{
-								if (USimpleConstructionScript* SCS = OwnerBP->SimpleConstructionScript)
-								{
-									for (USCS_Node* Node : SCS->GetAllNodes())
-									{
-										if (Node && Node->GetVariableName() == E.ComponentVariablePrettyName)
-										{
-											Found = Node->GetActualComponentTemplate(BPGC);
-											if (!Found) Found = Node->ComponentTemplate;
-											break;
-										}
-									}
-								}
+								Found = Node->ComponentTemplate;
 							}
+							break;
 						}
+						if (Found) break;
 					}
 				}
 
@@ -139,23 +138,7 @@ void UPinVarSubsystem::RepopulateSessionCacheAll()
 	}
 }
 
-
-
-void UPinVarSubsystem::GetAllStagedWithComp(TArray<TTuple<FName,FName,FName,FName>>& OutQuads) const
-{
-	OutQuads.Reset();
-	for (const auto& Pair : StagedPinnedGroups)
-	{
-		const FName ClassName = Pair.Key;
-		for (const FPinnedVariable& E : Pair.Value)
-		{
-			OutQuads.Add(MakeTuple(ClassName, E.VariableName, E.GroupName, E.ComponentTemplateName));
-		}
-	}
-}
-
-// --- disk IO ---
-FString UPinVarSubsystem::GetPinsFilePath() const
+FString UPinVarSubsystem::GetPinsFilePath()
 {
 	const FString Dir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("PinVar"))->GetBaseDir(), TEXT("PinVar"));
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
@@ -223,10 +206,6 @@ bool UPinVarSubsystem::SaveToDisk() const
 	{
 		UE_LOG(LogTemp, Error, TEXT("PinVar: SaveToDisk - SaveStringToFile failed: %s"), *FilePath);
 	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("PinVar: SaveToDisk OK -> %s (%d bytes)"), *FilePath, OutStr.Len());
-	}
 	return bSaved;
 }
 
@@ -234,11 +213,7 @@ bool UPinVarSubsystem::LoadFromDisk()
 {
 	const FString FilePath = GetPinsFilePath();
 	FString InStr;
-	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath))
-	{
-		UE_LOG(LogTemp, Log, TEXT("PinVar: LoadFromDisk - no file at %s"), *FilePath);
-		return false;
-	}
+	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath)){return false;}
 
 	TSharedPtr<FJsonObject> Root;
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(InStr);
@@ -286,7 +261,6 @@ bool UPinVarSubsystem::LoadFromDisk()
 		if (Arr.Num() > 0) ++ClassesLoaded;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("PinVar: LoadFromDisk - loaded %d classes."), ClassesLoaded);
 	MergeStagedIntoPinned();
 	RepopulateSessionCacheAll();
 	return true;

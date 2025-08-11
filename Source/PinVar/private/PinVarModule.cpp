@@ -39,7 +39,6 @@ void FPinVarModule::ShutdownModule()
 
 TSharedRef<SDockTab> FPinVarModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	// Sync from disk on open
 	ScanPinnedVariables();
 
 	return SNew(SDockTab)
@@ -83,10 +82,8 @@ void FPinVarModule::ScanPinnedVariables()
 
 	if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 	{
-		// Source of truth = JSON (staged). We show staged immediately.
-		Subsystem->LoadFromDisk();            // refresh staged
-		Subsystem->MergeStagedIntoPinned();   // mirror for display
-		UE_LOG(LogTemp, Log, TEXT("PinVar: Refreshed from disk."));
+		Subsystem->LoadFromDisk();            
+		Subsystem->MergeStagedIntoPinned();  
 	}
 }
 
