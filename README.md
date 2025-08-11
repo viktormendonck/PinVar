@@ -29,11 +29,17 @@ It allows you to group and edit variables from multiple sources — including co
 
 * Navigate to **Windows → Pinned Variables Tool**.
 * A new tab will appear with toolbar actions and the variable list.
+<img width="794" height="672" alt="Screenshot 2025-08-11 233443" src="https://github.com/user-attachments/assets/8aec0857-3fee-43ad-89e6-3d0f8e5490cc" />
 
 ### Adding Variables
 
 Click **Add Variable** to open the selection dialog.
+Here you can select the blueprint from which you will take your variables.
+<img width="609" height="443" alt="image" src="https://github.com/user-attachments/assets/da086ab0-13b2-4459-aff2-dd1a7819d421" />
+
 You can add variables from three different sources:
+
+<img width="531" height="425" alt="Screenshot 2025-08-11 234047" src="https://github.com/user-attachments/assets/c299a157-bcc8-4865-b420-0e71fc0e81fc" />
 
 #### 1. **Blueprint Local Variable**
 
