@@ -44,7 +44,8 @@ private:
 	// Small utils
 	static bool IsSkelOrReinst(const UClass* C);
 	static bool IsEditableProperty(const FProperty* P);
-	
+	void OnAnyAssetPicked(const FAssetData& AssetData);
+	void ShowAddDialogForDataAsset(UObject* DataAssetInstance); 
 
 	FSimpleDelegate             OnRefreshRequested;
 	TSharedPtr<SVerticalBox>    RootBox;
@@ -75,6 +76,8 @@ public:
 	{
 		UBlueprint* BP = nullptr;
 		UClass*     Class = nullptr;
+		bool bIsDataAssetClass = false;
+		TWeakObjectPtr<UObject> DataAssetInstance;
 
 		enum class ESourceType : uint8
 		{
@@ -110,6 +113,9 @@ private:
 	void GetAllGroups(TSharedRef<FState> S);
 	static bool IsBPDeclared(const FProperty* P);
 	static bool IsNativeDeclared(const FProperty* P);
+	static bool IsSimpleStruct(const UScriptStruct* SS);
+	static bool IsComplexStructContainer(const FProperty* P);
+	static bool IsContainerProperty(const FProperty* P);
 	static UObject* FindComponentTemplate(UClass* Class, FName TemplateName);
 	static void BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TSharedPtr<FCompOption>>& Out);
 	FString GroupStr;

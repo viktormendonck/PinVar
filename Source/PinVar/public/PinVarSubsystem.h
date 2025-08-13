@@ -9,11 +9,12 @@
 struct FPinnedVariable
 {
     FPinnedVariable() = default;
-    FPinnedVariable(FName InVar, FName InGroup, FName InComp = NAME_None, FName InCompVarPretty = NAME_None)
+    FPinnedVariable(FName InVar, FName InGroup, FName InComp = NAME_None, FName InCompVarPretty = NAME_None,FSoftObjectPath Path = FSoftObjectPath())
         : VariableName(InVar)
         , GroupName(InGroup)
         , ComponentTemplateName(InComp)
         , ComponentVariablePrettyName(InCompVarPretty)
+        , AssetPath(Path)
     {}
 
     // persisted
@@ -21,7 +22,7 @@ struct FPinnedVariable
     FName GroupName{ NAME_None };
     FName ComponentTemplateName{ NAME_None };         // template subobject name on CDO (e.g. AmbrosiaHealth_GEN_VARIABLE)
     FName ComponentVariablePrettyName{ NAME_None };   // SCS variable name (e.g. AmbrosiaHealth) — optional but helps resolution
-
+    FSoftObjectPath AssetPath;
     // session-only (not persisted)
     TWeakObjectPtr<UObject> ResolvedTemplate;         // resolved component template for this session
 };
@@ -38,7 +39,7 @@ public:
     TMap<FName, TArray<FPinnedVariable>> StagedPinnedGroups;
 
     void StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName = NAME_None);
-
+    void StagePinVariableForDataAsset(FName ClassName, FName VariableName, FName GroupName, UObject* DataAssetInstance);
     void StagePinVariableWithTemplate(FName ClassName, FName VariableName, FName GroupName,
                                       FName ComponentTemplateName, UObject* TemplatePtr,
                                       FName ComponentVariablePrettyName = NAME_None);

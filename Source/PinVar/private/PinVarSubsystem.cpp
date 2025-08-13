@@ -184,11 +184,15 @@ bool UPinVarSubsystem::SaveToDisk() const
 			{
 				J->SetStringField(TEXT("CompVar"), E.ComponentVariablePrettyName.ToString());
 			}
+			if (!E.AssetPath.IsNull())
+			{
+				J->SetStringField(TEXT("Asset"), E.AssetPath.ToString());
+			}
 			JArr.Add(MakeShared<FJsonValueObject>(J));
 		}
 		Root->SetArrayField(ClassKey, JArr);
 	}
-
+	
 	FString OutStr;
 	{
 		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
@@ -200,7 +204,6 @@ bool UPinVarSubsystem::SaveToDisk() const
 			return false;
 		}
 	}
-
 	const bool bSaved = FFileHelper::SaveStringToFile(OutStr, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	if (!bSaved)
 	{
@@ -208,7 +211,33 @@ bool UPinVarSubsystem::SaveToDisk() const
 	}
 	return bSaved;
 }
+void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName,FName VariableName,	FName GroupName,UObject* DataAssetInstance)
+{
+	if (!DataAssetInstance || VariableName.IsNone() || GroupName.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PinVar: Stage DA — invalid input."));
+		return;
+	}
+	TArray<FPinnedVariable>& Bucket = StagedPinnedGroups.FindOrAdd(ClassName);
 
+	const FString PathStr = DataAssetInstance->GetPathName();
+
+	for (const FPinnedVariable& E : Bucket)
+	{
+		if (E.VariableName == VariableName &&
+			E.GroupName    == GroupName    &&
+			E.AssetPath.ToString() == PathStr)
+		{
+			return;
+		}
+	}
+
+	FPinnedVariable NewEntry(VariableName, GroupName);
+	NewEntry.AssetPath = FSoftObjectPath(DataAssetInstance);
+
+	Bucket.Add(MoveTemp(NewEntry));
+	SaveToDisk();
+}
 bool UPinVarSubsystem::LoadFromDisk()
 {
 	const FString FilePath = GetPinsFilePath();
@@ -242,18 +271,21 @@ bool UPinVarSubsystem::LoadFromDisk()
 			if (!JV.IsValid() || !JV->TryGetObject(ObjPtr) || !ObjPtr || !ObjPtr->IsValid())
 				continue;
 
-			FString VarStr, GroupStr, CompStr, CompVarStr;
+			FString VarStr, GroupStr, CompStr, CompVarStr,AssetStr;
 			(*ObjPtr)->TryGetStringField(TEXT("Var"), VarStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Group"), GroupStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Comp"), CompStr);
 			(*ObjPtr)->TryGetStringField(TEXT("CompVar"), CompVarStr);
+			(*ObjPtr)->TryGetStringField(TEXT("Asset"), AssetStr);
+			
 			if (!VarStr.IsEmpty() && !GroupStr.IsEmpty())
 			{
 				Arr.Add(FPinnedVariable(
 					FName(*VarStr),
 					FName(*GroupStr),
 					CompStr.IsEmpty() ? NAME_None : FName(*CompStr),
-					CompVarStr.IsEmpty() ? NAME_None : FName(*CompVarStr)
+					CompVarStr.IsEmpty() ? NAME_None : FName(*CompVarStr),
+					FSoftObjectPath(AssetStr)
 				));
 			}
 		}
