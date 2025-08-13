@@ -31,6 +31,21 @@
 #include "UObject/UObjectIterator.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "Engine/BlueprintGeneratedClass.h"
+#include "IDetailsView.h"
+#include "IStructureDetailsView.h"
+#include "UObject/StructOnScope.h"
+
+// Simple structs that should stay SinglePropertyView (no dropdown header)
+static bool IsSimpleStruct(const UScriptStruct* SS)
+{
+	return SS == TBaseStructure<FVector>::Get()
+		|| SS == TBaseStructure<FVector2D>::Get()
+		|| SS == TBaseStructure<FVector4>::Get()
+		|| SS == TBaseStructure<FRotator>::Get()
+		|| SS == TBaseStructure<FQuat>::Get()
+		|| SS == TBaseStructure<FLinearColor>::Get()
+		|| SS == TBaseStructure<FColor>::Get();
+}
 
 UObject* SPinVarPanel::FindComponentTemplate(UClass* Class, FName TemplateName)
 {
@@ -331,22 +346,26 @@ bool SPinVarPanel::IsSkelOrReinst(const UClass* C)
 	return N.StartsWith(TEXT("SKEL_")) || N.StartsWith(TEXT("REINST_"));
 }
 
+// SPinVarPanel.cpp
 bool SPinVarPanel::IsEditableProperty(const FProperty* P)
 {
 	if (!P) return false;
 
-	// Editable on class defaults if it has CPF_Edit (covers EditAnywhere + EditDefaultsOnly + EditInstanceOnly)
 	const bool bHasEdit = P->HasAnyPropertyFlags(CPF_Edit);
-
-	// Hide if read-only in editor or not editable on templates (CDOs)
 	const bool bReadOnlyInEditor  = P->HasAnyPropertyFlags(CPF_EditConst);
 	const bool bHiddenOnTemplates = P->HasAnyPropertyFlags(CPF_DisableEditOnTemplate);
-
-	// We don't expose transient or delegate properties
 	const bool bTransient = P->HasAnyPropertyFlags(CPF_Transient);
 	const bool bIsDelegate =
 		P->IsA(FMulticastDelegateProperty::StaticClass()) ||
 		P->IsA(FDelegateProperty::StaticClass());
+	
+	const bool bIsStructWrapper = P->IsA(FStructProperty::StaticClass());
+
+	// Allow struct wrappers even if DisableEditOnTemplate, but still block read‑only/transient/delegates.
+	if (bIsStructWrapper)
+	{
+		return bHasEdit && !bReadOnlyInEditor && !bTransient && !bIsDelegate;
+	}
 
 	return bHasEdit && !bReadOnlyInEditor && !bHiddenOnTemplates && !bTransient && !bIsDelegate;
 }
@@ -414,7 +433,6 @@ void SPinVarPanel::GatherPinnedProperties()
 
 	FPropertyEditorModule& PropEd = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
-	
 	struct FClassBuckets
 	{
 		FName   ClassName;
@@ -440,7 +458,7 @@ void SPinVarPanel::GatherPinnedProperties()
 		if (!CDO) continue;
 
 		const FName ClassFName = Cls->GetFName();
-		const FText ClassLabel = FText::FromString(PrettyBlueprintDisplayName(Cls)); // display-only prettified name. 
+		const FText ClassLabel = FText::FromString(PrettyBlueprintDisplayName(Cls)); // prettified for display
 
 		for (const FPinnedVariable& Pinned : Pair.Value)
 		{
@@ -463,12 +481,12 @@ void SPinVarPanel::GatherPinnedProperties()
 
 			// Check property exists and is editable
 			FProperty* Found = FindFProperty<FProperty>(TargetObj->GetClass(), Pinned.VariableName);
-			if (!Found || !IsEditableProperty(Found)) continue;  // uses your IsEditableProperty() 
+			if (!Found || !IsEditableProperty(Found)) continue;
 
 			// Groups can be split by ','
 			TArray<FString> Tokens;
 			const FString Group = Pinned.GroupName.ToString();
-			Group.ParseIntoArray(Tokens, TEXT(","), /*CullEmpty*/true);
+			Group.ParseIntoArray(Tokens, TEXT(","), /*CullEmpty*/ true);
 			if (Tokens.Num() == 0) Tokens.Add(GroupStr);
 
 			for (const FString& Tok : Tokens)
@@ -482,14 +500,12 @@ void SPinVarPanel::GatherPinnedProperties()
 
 				if (!bIsComponent)
 				{
-					// Class defaults: BP vs Native by owner
 					if (IsBPDeclared(Found))          { B.BPVars.Add(Pinned.VariableName); }
 					else if (IsNativeDeclared(Found)) { B.NativeVars.Add(Pinned.VariableName); }
-					else                               { B.BPVars.Add(Pinned.VariableName); } // fallback
+					else                               { B.BPVars.Add(Pinned.VariableName); }
 				}
 				else
 				{
-					// Component: show pretty label if present, else template name
 					const FName CompLabel = !Pinned.ComponentVariablePrettyName.IsNone()
 						? Pinned.ComponentVariablePrettyName
 						: Pinned.ComponentTemplateName;
@@ -541,15 +557,103 @@ void SPinVarPanel::GatherPinnedProperties()
 				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
 			];
 
+			// --- Helpers ---
+
+			// Single property OR struct-only details (only shows the struct's members)
 			auto EmitPropOnly = [&](UObject* Target, const FName Var) -> TSharedRef<SWidget>
 			{
+				FProperty* P = FindFProperty<FProperty>(Target->GetClass(), Var);
+
+				// ---- Structs ----
+				if (FStructProperty* StructProp = CastField<FStructProperty>(P))
+				{
+					UScriptStruct* SS = StructProp->Struct;
+
+					if (SS && IsSimpleStruct(SS))
+					{
+						// Simple struct: single property view
+						FPropertyEditorModule& PropEd =
+							FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+						FSinglePropertyParams Params;
+						FText TypeTooltip = FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type"));
+						TSharedPtr<ISinglePropertyView> View = PropEd.CreateSingleProperty(Target, Var, Params);
+						TSharedRef<SWidget> Inner =	View.IsValid()
+									? StaticCastSharedRef<SWidget>(View.ToSharedRef())
+									: StaticCastSharedRef<SWidget>(
+										  SNew(STextBlock).Text(FText::FromName(Var)) );
+
+						// Always wrap so we can attach the tooltip cleanly
+						return SNew(SBox)
+							.ToolTipText(TypeTooltip)
+							[
+								Inner
+							];
+					}
+
+					// Everything else: struct details view (even if IsSimpleStruct() returns false)
+					if (SS)
+					{
+						void* ValuePtr = StructProp->ContainerPtrToValuePtr<void>(Target);
+						if (ValuePtr)
+						{
+							TSharedRef<FStructOnScope> Scope =
+								MakeShared<FStructOnScope>(SS, reinterpret_cast<uint8*>(ValuePtr));
+
+							FDetailsViewArgs DArgs;
+							DArgs.bAllowSearch      = false;
+							DArgs.bShowOptions      = false;
+							DArgs.bShowScrollBar    = false;
+							DArgs.bHideSelectionTip = true;
+							DArgs.ViewIdentifier    = TEXT("PinVarStructOnly");
+							DArgs.bShowObjectLabel = false;
+
+							FStructureDetailsViewArgs SArgs;
+							SArgs.bShowObjects = false;
+							SArgs.bShowAssets  = false;
+
+							FPropertyEditorModule& PropEd =
+								FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+							TSharedRef<IStructureDetailsView> SDV =
+								PropEd.CreateStructureDetailView(DArgs, SArgs, nullptr);
+							SDV->SetStructureData(Scope);
+
+							return SNew(SVerticalBox)
+							+ SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 2)
+							[
+								SNew(STextBlock)
+								.Text(FText::FromName(Var))
+							]
+							+ SVerticalBox::Slot().AutoHeight()
+							[
+								SDV->GetWidget().ToSharedRef()
+							];
+						}
+					}
+				}
+				// ---- Non-structs ----
+				FPropertyEditorModule& PropEd =
+					FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
 				FSinglePropertyParams Params;
 				TSharedPtr<ISinglePropertyView> View = PropEd.CreateSingleProperty(Target, Var, Params);
-				return View.IsValid()
-					? StaticCastSharedRef<SWidget>(View.ToSharedRef())
-					: SNew(STextBlock).Text(FText::FromString(Var.ToString()));
-			};
 
+				const FText TypeTooltip = FText::FromString(P ? P->GetCPPType(nullptr) : TEXT("Unknown Type"));
+
+				// Build inner widget (SinglePropertyView or fallback text)
+				TSharedRef<SWidget> Inner =
+					View.IsValid()
+						? StaticCastSharedRef<SWidget>(View.ToSharedRef())
+						: StaticCastSharedRef<SWidget>(SNew(STextBlock).Text(FText::FromName(Var)));
+
+				// Always wrap so we can attach the tooltip
+				return SNew(SBox)
+					.ToolTipText(TypeTooltip)
+					[
+						Inner
+					];
+			};
 			auto EmitPropWithDelete = [&](UObject* Target,
 			                              const FName Var,
 			                              const FName GroupName,
@@ -561,13 +665,13 @@ void SPinVarPanel::GatherPinnedProperties()
 				+ SHorizontalBox::Slot()
 				.FillWidth(1.f)
 				[
-					EmitPropOnly(Target, Var)
+					EmitPropOnly(Target, Var) // struct -> struct-only panel, else single row
 				]
 
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(6.f, 0.f, 0.f, 0.f)
+				.VAlign(VAlign_Top)
+				.Padding(6.f, 2.f, 0.f, 0.f)
 				[
 					SNew(SButton)
 					.ButtonStyle(FAppStyle::Get(), "FlatButton")
@@ -616,7 +720,7 @@ void SPinVarPanel::GatherPinnedProperties()
 				UObject* Tmpl = B.ComponentTemplates.FindRef(CompLabel).Get();
 				if (!Tmpl) continue;
 
-				const FName CompNameForRemoval = Tmpl->GetFName(); // remove by template key
+				const FName CompNameForRemoval = Tmpl->GetFName();
 
 				for (const FName& Var : B.ComponentVarsByName[CompLabel])
 				{
@@ -900,21 +1004,42 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0,2,0,0)
 			[
 				SAssignNew(S->CompPropCombo, SSearchableComboBox)
-				.OptionsSource(&S->CompPropOpts)
+				.OptionsSource(&S->CompPropOpts) // TArray<TSharedPtr<FString>>
 				.OnGenerateWidget_Lambda([](TSharedPtr<FString> It)
 				{
-					return SNew(STextBlock).Text(FText::FromString(It.IsValid()? *It : TEXT("None")));
+					return SNew(STextBlock).Text(FText::FromString(It.IsValid() ? *It : TEXT("None")));
 				})
-				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type)
+				.OnSelectionChanged_Lambda([S](TSharedPtr<FString> NewSel, ESelectInfo::Type Info)
 				{
+					// If Enter was pressed with no explicit row highlighted, pick first filtered option
+					if (!NewSel.IsValid() && S->CompPropOpts.Num() > 0)
+					{
+						NewSel = S->CompPropOpts[0];
+						if (S->CompPropCombo.IsValid())
+						{
+							S->CompPropCombo->SetSelectedItem(NewSel);
+						}
+					}
+
 					S->CompPropSel = NewSel;
+
+					// Close the dropdown when selection comes from keyboard (Enter/Navigation)
+					if (Info == ESelectInfo::OnKeyPress || Info == ESelectInfo::OnNavigation)
+					{
+						if (S->CompPropCombo.IsValid())
+						{
+							S->CompPropCombo->SetIsOpen(false);
+						}
+					}
 				})
 				.InitiallySelectedItem(S->CompPropSel)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([S]()
 					{
-						return S->CompPropSel.IsValid()? FText::FromString(*S->CompPropSel) : FText::FromString(TEXT("None"));
+						return S->CompPropSel.IsValid()
+							? FText::FromString(*S->CompPropSel)
+							: FText::FromString(TEXT("None"));
 					})
 				]
 			]
@@ -973,6 +1098,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
     [
         SNew(SButton)
         .IsEnabled_Lambda([S](){ return S->ExistingGroupSel.IsValid() && !S->ExistingGroupSel->IsEmpty(); })
+    	.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
         .Text(FText::FromString("Add to existing group"))
         .OnClicked_Lambda([this, S]()
         {
