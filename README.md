@@ -64,7 +64,8 @@ You can add variables from three different sources:
 ### Group Management
 
 * **New Group:** Enter a name in the **Group Name** field.
-  Multiple groups can be entered as comma-separated names (`Combat,AI`).
+  Multiple groups can be entered as comma-separated names (`Combat,AI`).\
+  If you want it to be a subgroup you use the pipe (`Combat|Enemies|RangedEnemy`).
 * **Existing Group:** Select from the dropdown and click **Add to existing group**.
 * You can also add to an existing group by putting its name in the new group field
 
