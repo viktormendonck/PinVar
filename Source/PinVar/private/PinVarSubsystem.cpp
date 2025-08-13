@@ -18,12 +18,15 @@ bool UPinVarSubsystem::ContainsTriple(const TArray<FPinnedVariable>& Arr, FName 
 void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	LoadFromDisk();         
-	MergeStagedIntoPinned(); 
+
+	LoadFromDisk();
+	MergeStagedIntoPinned();
 	RepopulateSessionCacheAll();
 }
 
-void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
+
+void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName,
+                                        FName ComponentTemplateName)
 {
 	TArray<FPinnedVariable>& Vars = StagedPinnedGroups.FindOrAdd(ClassName);
 	if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
@@ -48,7 +51,8 @@ void UPinVarSubsystem::StagePinVariableWithTemplate(FName ClassName, FName Varia
 	SaveToDisk();
 }
 
-bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
+bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName,
+                                          FName ComponentTemplateName)
 {
 	if (TArray<FPinnedVariable>* Vars = StagedPinnedGroups.Find(ClassName))
 	{
@@ -72,16 +76,56 @@ bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, F
 
 void UPinVarSubsystem::MergeStagedIntoPinned()
 {
-	PinnedGroups.Empty();
-	for (const auto& Pair : StagedPinnedGroups)
+	// Rebuild PinnedGroups by reusing the Stage* APIs.
+	// Note: Stage* writes to StagedPinnedGroups and calls SaveToDisk().
+	// We swap in a scratch, restage into it, copy to PinnedGroups, then restore.
+
+	const TMap<FName, TArray<FPinnedVariable>> Original = StagedPinnedGroups; // keep a copy
+	StagedPinnedGroups.Empty();
+
+	for (const TPair<FName, TArray<FPinnedVariable>>& Pair : Original)
 	{
 		const FName ClassName = Pair.Key;
-		const TArray<FPinnedVariable>& Staged = Pair.Value;
-		TArray<FPinnedVariable>& Dest = PinnedGroups.FindOrAdd(ClassName);
-		Dest.Append(Staged);
-	}
-}
 
+		for (const FPinnedVariable& E : Pair.Value)
+		{
+			// Data Asset entry
+			if (!E.AssetPath.IsNull())
+			{
+				UObject* Instance = E.AssetPath.ResolveObject();
+				if (!Instance) { Instance = E.AssetPath.TryLoad(); }
+				if (Instance)
+				{
+					StagePinVariableForDataAsset(ClassName, E.VariableName, E.GroupName, Instance);
+				}
+				continue;
+			}
+
+			// Component entry (template or pretty name)
+			if (!E.ComponentTemplateName.IsNone() || E.ResolvedTemplate.IsValid())
+			{
+				StagePinVariableWithTemplate(
+					ClassName,
+					E.VariableName,
+					E.GroupName,
+					E.ComponentTemplateName,
+					E.ResolvedTemplate.Get(),
+					E.ComponentVariablePrettyName
+				);
+				continue;
+			}
+
+			// Class default (no component/asset)
+			StagePinVariable(ClassName, E.VariableName, E.GroupName, NAME_None);
+		}
+	}
+
+	// Mirror the freshly-restaged set into PinnedGroups
+	PinnedGroups = StagedPinnedGroups;
+
+	// Restore original staged map
+	StagedPinnedGroups = Original;
+}
 
 void UPinVarSubsystem::RepopulateSessionCacheAll()
 {
@@ -122,7 +166,7 @@ void UPinVarSubsystem::RepopulateSessionCacheAll()
 							if (!Node || Node->GetVariableName() != E.ComponentVariablePrettyName) continue;
 
 							Found = Node->GetActualComponentTemplate(BPGC);
-							if (!Found) 
+							if (!Found)
 							{
 								Found = Node->ComponentTemplate;
 							}
@@ -174,7 +218,7 @@ bool UPinVarSubsystem::SaveToDisk() const
 				continue;
 
 			TSharedRef<FJsonObject> J = MakeShared<FJsonObject>();
-			J->SetStringField(TEXT("Var"),   E.VariableName.ToString());
+			J->SetStringField(TEXT("Var"), E.VariableName.ToString());
 			J->SetStringField(TEXT("Group"), E.GroupName.ToString());
 			if (!E.ComponentTemplateName.IsNone())
 			{
@@ -192,7 +236,7 @@ bool UPinVarSubsystem::SaveToDisk() const
 		}
 		Root->SetArrayField(ClassKey, JArr);
 	}
-	
+
 	FString OutStr;
 	{
 		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
@@ -200,18 +244,22 @@ bool UPinVarSubsystem::SaveToDisk() const
 
 		if (!FJsonSerializer::Serialize(Root, Writer))
 		{
-			UE_LOG(LogTemp, Error, TEXT("PinVar: SaveToDisk - Serialize failed (root had %d keys)."), Root->Values.Num());
+			UE_LOG(LogTemp, Error, TEXT("PinVar: SaveToDisk - Serialize failed (root had %d keys)."),
+			       Root->Values.Num());
 			return false;
 		}
 	}
-	const bool bSaved = FFileHelper::SaveStringToFile(OutStr, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	const bool bSaved = FFileHelper::SaveStringToFile(OutStr, *FilePath,
+	                                                  FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	if (!bSaved)
 	{
 		UE_LOG(LogTemp, Error, TEXT("PinVar: SaveToDisk - SaveStringToFile failed: %s"), *FilePath);
 	}
 	return bSaved;
 }
-void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName,FName VariableName,	FName GroupName,UObject* DataAssetInstance)
+
+void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName, FName VariableName, FName GroupName,
+                                                    UObject* DataAssetInstance)
 {
 	if (!DataAssetInstance || VariableName.IsNone() || GroupName.IsNone())
 	{
@@ -225,7 +273,7 @@ void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName,FName Variab
 	for (const FPinnedVariable& E : Bucket)
 	{
 		if (E.VariableName == VariableName &&
-			E.GroupName    == GroupName    &&
+			E.GroupName == GroupName &&
 			E.AssetPath.ToString() == PathStr)
 		{
 			return;
@@ -238,11 +286,12 @@ void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName,FName Variab
 	Bucket.Add(MoveTemp(NewEntry));
 	SaveToDisk();
 }
+
 bool UPinVarSubsystem::LoadFromDisk()
 {
 	const FString FilePath = GetPinsFilePath();
 	FString InStr;
-	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath)){return false;}
+	if (!FPaths::FileExists(FilePath) || !FFileHelper::LoadFileToString(InStr, *FilePath)) { return false; }
 
 	TSharedPtr<FJsonObject> Root;
 	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(InStr);
@@ -271,13 +320,13 @@ bool UPinVarSubsystem::LoadFromDisk()
 			if (!JV.IsValid() || !JV->TryGetObject(ObjPtr) || !ObjPtr || !ObjPtr->IsValid())
 				continue;
 
-			FString VarStr, GroupStr, CompStr, CompVarStr,AssetStr;
+			FString VarStr, GroupStr, CompStr, CompVarStr, AssetStr;
 			(*ObjPtr)->TryGetStringField(TEXT("Var"), VarStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Group"), GroupStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Comp"), CompStr);
 			(*ObjPtr)->TryGetStringField(TEXT("CompVar"), CompVarStr);
 			(*ObjPtr)->TryGetStringField(TEXT("Asset"), AssetStr);
-			
+
 			if (!VarStr.IsEmpty() && !GroupStr.IsEmpty())
 			{
 				Arr.Add(FPinnedVariable(

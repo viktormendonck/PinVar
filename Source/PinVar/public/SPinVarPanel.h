@@ -15,18 +15,21 @@ class FProperty;
 class SPinVarPanel : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SPinVarPanel) {}
-	SLATE_EVENT(FSimpleDelegate, OnRefreshRequested)
-SLATE_END_ARGS()
+	SLATE_BEGIN_ARGS(SPinVarPanel)
+		{
+		}
+
+		SLATE_EVENT(FSimpleDelegate, OnRefreshRequested)
+	SLATE_END_ARGS()
 
 	static FString PrettyBlueprintDisplayName(const UClass* Cls);
-void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs);
 	void Refresh();
 
 private:
 	// Toolbar actions
 	FReply OnAddBlueprintVariableClicked();
-	void   OnBlueprintPicked(const FAssetData& AssetData);
+	void OnBlueprintPicked(const FAssetData& AssetData);
 
 	// Unified “Add” dialog (Blueprint local / Parent C++ / Component)
 	void ShowAddDialog(UBlueprint* BP);
@@ -45,12 +48,18 @@ private:
 	static bool IsSkelOrReinst(const UClass* C);
 	static bool IsEditableProperty(const FProperty* P);
 	void OnAnyAssetPicked(const FAssetData& AssetData);
-	void ShowAddDialogForDataAsset(UObject* DataAssetInstance); 
+	void ShowAddDialogForDataAsset(UObject* DataAssetInstance);
 
-	FSimpleDelegate             OnRefreshRequested;
-	TSharedPtr<SVerticalBox>    RootBox;
+	FSimpleDelegate OnRefreshRequested;
+	TSharedPtr<SVerticalBox> RootBox;
 
-	struct FEntry { FName Group; TSharedRef<SWidget> Widget; };
+	FName ClassName{}; //weird bypass for illegal fname in func
+	struct FEntry
+	{
+		FName Group;
+		TSharedRef<SWidget> Widget;
+	};
+
 	TMap<FName, TArray<FEntry>> Grouped;
 
 	// Track currently open popups so we can close them when needed
@@ -61,21 +70,18 @@ private:
 	TMap<FName, bool> GroupExpandedState;
 	TMap<FName, TWeakPtr<class SExpandableArea>> GroupAreaWidgets;
 
-
-	
 public:
-	
 	struct FCompOption
 	{
 		FName Label;
 		FName TemplateName;
 		TWeakObjectPtr<UActorComponent> Template;
 	};
-	
+
 	struct FState : public TSharedFromThis<FState>
 	{
 		UBlueprint* BP = nullptr;
-		UClass*     Class = nullptr;
+		UClass* Class = nullptr;
 		bool bIsDataAssetClass = false;
 		TWeakObjectPtr<UObject> DataAssetInstance;
 
@@ -85,38 +91,41 @@ public:
 			LocalCppVar,
 			ComponentVar,
 		};
+
 		ESourceType SourceType = ESourceType::LocalBPVar;
 
 		TArray<TSharedPtr<FString>> LocalVarOpts;
-		TSharedPtr<FString>         LocalVarSel;
+		TSharedPtr<FString> LocalVarSel;
 
 		TArray<TSharedPtr<FString>> NativePropOpts;
-		TSharedPtr<FString>         NativePropSel;
+		TSharedPtr<FString> NativePropSel;
 
-		TArray<TSharedPtr<FString>>                    CompOptLabels;
+		TArray<TSharedPtr<FString>> CompOptLabels;
 		TMap<FString, TSharedPtr<FCompOption>> LabelToCompOpt;
-		TSharedPtr<FCompOption>          CompSel;
+		TSharedPtr<FCompOption> CompSel;
 
-		TArray<TSharedPtr<FString>>   CompPropOpts;
-		TSharedPtr<FString>           CompPropSel;
+		TArray<TSharedPtr<FString>> CompPropOpts;
+		TSharedPtr<FString> CompPropSel;
 		TSharedPtr<SSearchableComboBox> CompPropCombo;
 
 		TArray<TSharedPtr<FCompOption>> CompOpts;
-	
+
 		FString GroupStr;
-		TArray<FString>                AllGroups;
+		TArray<FString> AllGroups;
 
 		TArray<TSharedPtr<FString>> ExistingGroupOpts;
-		TSharedPtr<FString>         ExistingGroupSel;
+		TSharedPtr<FString> ExistingGroupSel;
 	};
+
 private:
 	void GetAllGroups(TSharedRef<FState> S);
 	static bool IsBPDeclared(const FProperty* P);
 	static bool IsNativeDeclared(const FProperty* P);
 	static bool IsSimpleStruct(const UScriptStruct* SS);
+	UClass* ResolveGeneratedClassByShortName();
 	static bool IsComplexStructContainer(const FProperty* P);
 	static bool IsContainerProperty(const FProperty* P);
 	static UObject* FindComponentTemplate(UClass* Class, FName TemplateName);
-	static void BuildComponentOptions(UBlueprint* BP, UClass* Class,TArray<TSharedPtr<FCompOption>>& Out);
+	static void BuildComponentOptions(UBlueprint* BP, UClass* Class, TArray<TSharedPtr<FCompOption>>& Out);
 	FString GroupStr;
 };

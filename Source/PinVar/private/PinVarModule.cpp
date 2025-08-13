@@ -1,6 +1,5 @@
 #include "PinVarModule.h"
 
-#include "BlueprintEditorModule.h"
 #include "Modules/ModuleManager.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -15,13 +14,16 @@ const FName FPinVarModule::PinVarTabName("PinVar");
 void FPinVarModule::StartupModule()
 {
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
-		PinVarTabName,
-		FOnSpawnTab::CreateRaw(this, &FPinVarModule::OnSpawnPluginTab))
-		.SetDisplayName(FText::FromString("Pinned Variables Tool"))
-		.SetMenuType(ETabSpawnerMenuType::Hidden);
+		                        PinVarTabName,
+		                        FOnSpawnTab::CreateRaw(this, &FPinVarModule::OnSpawnPluginTab))
+	                        .SetDisplayName(FText::FromString("Pinned Variables Tool"))
+	                        .SetMenuType(ETabSpawnerMenuType::Hidden);
 
 	MenuRegHandle = UToolMenus::RegisterStartupCallback(
 		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FPinVarModule::RegisterMenus));
+	FTSTicker::GetCoreTicker().AddTicker(
+		FTickerDelegate::CreateRaw(this, &FPinVarModule::InitialRefreshOnce),
+		1.0f);
 }
 
 void FPinVarModule::ShutdownModule()
@@ -40,6 +42,12 @@ void FPinVarModule::ShutdownModule()
 TSharedRef<SDockTab> FPinVarModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
 	ScanPinnedVariables();
+
+	TSharedRef<SPinVarPanel> Panel =
+		SNew(SPinVarPanel)
+		.OnRefreshRequested(FSimpleDelegate::CreateRaw(this, &FPinVarModule::ScanPinnedVariables));
+
+	PanelWeak = Panel;
 
 	return SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab)
@@ -82,9 +90,25 @@ void FPinVarModule::ScanPinnedVariables()
 
 	if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 	{
-		Subsystem->LoadFromDisk();            
-		Subsystem->MergeStagedIntoPinned();  
+		Subsystem->LoadFromDisk();
+		Subsystem->MergeStagedIntoPinned();
 	}
+}
+
+bool FPinVarModule::InitialRefreshOnce(float)
+{
+	if (!GEditor) return true; // keep trying until editor is up
+
+	if (TSharedPtr<SPinVarPanel> P = PanelWeak.Pin())
+	{
+		P->Refresh(); // Refresh() -> OnRefreshRequested.Execute()
+	}
+	else
+	{
+		// panel not open yet; run the bound work directly
+		ScanPinnedVariables();
+	}
+	return false; // done
 }
 
 IMPLEMENT_MODULE(FPinVarModule, PinVar)
