@@ -10,6 +10,7 @@ It allows you to group and edit variables from multiple sources — including co
 
 * **Custom “Pinned Variables Tool” Tab** – Access from *Window → Custom Tools → Pinned Variables Tool*.
 * **Group-Based Organization** – Create and manage variable groups for easy editing.
+* **Subcategories** - use "*A|B*" to add a subcategory for organization of variables.
 * **Multiple Source Types**:
   * Blueprint-local variables
   * Parent C++ class properties
