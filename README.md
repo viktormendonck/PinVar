@@ -57,7 +57,7 @@ You can add variables from three different sources:
 #### 3. **Component Variable**
 
 * Select a Blueprint.
-* Choose a component from the list (template or SCS-added).
+* Choose a component from the list.
 * Pick a variable from that component’s defaults.
 
 
@@ -86,7 +86,7 @@ Groups are **per variable set**, not hard-linked to Blueprints, meaning you can 
 Pinned variables are saved as JSON in:
 
 ```
-<PluginDir>/PinVar/Pinned.json
+<ProjectDir>/PinVar/Pinned.json
 ```
 
 This file contains an array of pinned variable definitions including:
@@ -107,8 +107,3 @@ This file contains an array of pinned variable definitions including:
    * Parent C++ `ACharacter` properties
    * Weapon component variables
 5. Edit all in one place without jumping between assets.
-
-## Why This Exists
-
-While balancing gameplay systems, you often need to tweak the same category of variables scattered across many assets.
-**PinVar** centralizes these edits, reducing context switching and making iteration faster.
