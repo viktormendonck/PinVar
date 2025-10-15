@@ -1053,7 +1053,9 @@ FReply SPinVarPanel::OnRemovePinned(FName Class, FName VarName, FName GroupName,
 	{
 		if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 		{
+			
 			Subsystem->UnstagePinVariable(Class, VarName, GroupName, CompName);
+			Subsystem->MergeStagedIntoPinned();
 			Refresh(); // rebuild UI
 		}
 	}
@@ -1318,7 +1320,6 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
 								GroupName,
 								S->DataAssetInstance.Get()
 							);
-							Subsystem->SaveToDisk();
 							Subsystem->MergeStagedIntoPinned();
 						}
 					}
@@ -1380,7 +1381,6 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
 								GetAllGroups(S);
 							}
 						}
-						Subsystem->SaveToDisk();
 						Subsystem->MergeStagedIntoPinned();
 					}
 					Refresh();
@@ -1771,7 +1771,6 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 						if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
 						{
 							Subsystem->StagePinVariable(S->Class->GetFName(), InVar, GroupName, NAME_None);
-							Subsystem->SaveToDisk();
 							Subsystem->MergeStagedIntoPinned();
 						}
 					};
@@ -1806,7 +1805,6 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 								{
 									Subsystem->StagePinVariableWithTemplate(
 										S->Class->GetFName(), VarName, GroupName, TemplateKey, Tmpl, PrettyVar);
-									Subsystem->SaveToDisk();
 									Subsystem->MergeStagedIntoPinned();
 								}
 							}
@@ -1875,7 +1873,6 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 											S->Class->GetFName(), VarName, FName(*G), TemplateKey, Tmpl, PrettyVar);
 										GetAllGroups(S);
 									}
-									Subsystem->SaveToDisk();
 									Subsystem->MergeStagedIntoPinned();
 								}
 								Refresh();
@@ -1904,7 +1901,6 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 								GetAllGroups(S);
 							}
 						}
-						Subsystem->SaveToDisk();
 					}
 					Refresh();
 					return FReply::Handled();
@@ -1914,11 +1910,31 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 			[
 				SNew(SButton)
 				.Text(FText::FromString("Cancel"))
-				.OnClicked_Lambda([Dialog]()
-				{
-					Dialog->RequestDestroyWindow();
-					return FReply::Handled();
-				})
+				.OnClicked_Lambda([this, Dialog]()
+					{
+						Dialog->RequestDestroyWindow();
+						// Reopen the blueprint selection picker
+						FAssetPickerConfig PickerConfig;
+						PickerConfig.Filter.bRecursiveClasses = true;
+						PickerConfig.Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+						PickerConfig.Filter.ClassPaths.Add(UPrimaryDataAsset::StaticClass()->GetClassPathName());
+						PickerConfig.Filter.ClassPaths.Add(UDataAsset::StaticClass()->GetClassPathName());
+						PickerConfig.SelectionMode = ESelectionMode::Single;
+						PickerConfig.OnAssetSelected = FOnAssetSelected::CreateSP(this, &SPinVarPanel::OnAnyAssetPicked);
+
+						TSharedRef<SWindow> PickerWindow = SNew(SWindow)
+							.Title(FText::FromString("Select Asset"))
+							.ClientSize(FVector2D(600, 400))
+							[
+								FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser")
+								.Get()
+								.CreateAssetPicker(PickerConfig)
+							];
+
+						SelectBlueprintWindow = PickerWindow;
+						FSlateApplication::Get().AddWindow(PickerWindow);
+						return FReply::Handled();
+					})
 			]
 		]
 	);

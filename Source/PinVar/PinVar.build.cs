@@ -30,6 +30,8 @@ public class PinVar : ModuleRules
 			"Json",
 			"JsonUtilities",
 			"Projects",
+			"SourceControl",
+			"SourceControlWindows",
 			"AssetRegistry"
 		});
 	}

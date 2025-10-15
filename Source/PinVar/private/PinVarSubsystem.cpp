@@ -1,4 +1,7 @@
 ﻿#include "PinVarSubsystem.h"
+#include "ISourceControlModule.h"
+#include "ISourceControlProvider.h"
+#include "SourceControlOperations.h"
 #include "Interfaces/IPluginManager.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
@@ -33,7 +36,8 @@ void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FNa
 	{
 		Vars.Add(FPinnedVariable(VariableName, GroupName, ComponentTemplateName));
 	}
-	SaveToDisk();
+	
+	
 }
 
 
@@ -48,7 +52,7 @@ void UPinVarSubsystem::StagePinVariableWithTemplate(FName ClassName, FName Varia
 		E.ResolvedTemplate = TemplatePtr;
 		Vars.Add(MoveTemp(E));
 	}
-	SaveToDisk();
+	
 }
 
 bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName,
@@ -68,7 +72,6 @@ bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, F
 		{
 			StagedPinnedGroups.Remove(ClassName);
 		}
-		SaveToDisk();
 		return Removed > 0;
 	}
 	return false;
@@ -76,10 +79,6 @@ bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, F
 
 void UPinVarSubsystem::MergeStagedIntoPinned()
 {
-	// Rebuild PinnedGroups by reusing the Stage* APIs.
-	// Note: Stage* writes to StagedPinnedGroups and calls SaveToDisk().
-	// We swap in a scratch, restage into it, copy to PinnedGroups, then restore.
-
 	const TMap<FName, TArray<FPinnedVariable>> Original = StagedPinnedGroups; // keep a copy
 	StagedPinnedGroups.Empty();
 
@@ -125,6 +124,7 @@ void UPinVarSubsystem::MergeStagedIntoPinned()
 
 	// Restore original staged map
 	StagedPinnedGroups = Original;
+	SaveToDisk();
 }
 
 void UPinVarSubsystem::RepopulateSessionCacheAll()
@@ -184,13 +184,14 @@ void UPinVarSubsystem::RepopulateSessionCacheAll()
 
 FString UPinVarSubsystem::GetPinsFilePath()
 {
-	const FString Dir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("PinVar"))->GetBaseDir(), TEXT("PinVar"));
+	const FString Dir = FPaths::Combine(FPaths::ProjectDir(), TEXT("PinVar"));
 	IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
 	return FPaths::Combine(Dir, TEXT("Pinned.json"));
 }
 
 bool UPinVarSubsystem::SaveToDisk() const
 {
+	UE_LOG(LogTemp, Display, TEXT("SaveToDisk"));
 	const FString FilePath = GetPinsFilePath();
 	const FString Dir = FPaths::GetPath(FilePath);
 
@@ -249,6 +250,32 @@ bool UPinVarSubsystem::SaveToDisk() const
 			return false;
 		}
 	}
+
+	// --- Source Control: checkout before saving if the file exists; add after saving if it's new ---
+	const bool bFileExists = PF.FileExists(*FilePath);
+	const bool bSCEnabled  = ISourceControlModule::Get().IsEnabled();
+	ISourceControlProvider* Provider = bSCEnabled ? &ISourceControlModule::Get().GetProvider() : nullptr;
+
+	if (bSCEnabled && Provider && bFileExists)
+	{
+		Provider->Execute(ISourceControlOperation::Create<FUpdateStatus>(), FilePath);
+		if (FSourceControlStatePtr State = Provider->GetState(FilePath, EStateCacheUsage::Use))
+		{
+			if (!State->IsCheckedOut())
+			{
+				if (State->CanCheckout())
+				{
+					if (!Provider->Execute(ISourceControlOperation::Create<FCheckOut>(), FilePath))
+					{
+						UE_LOG(LogTemp, Warning, TEXT("PinVar: SaveToDisk - Perforce checkout failed for %s"), *FilePath);
+					}
+				} else 
+				{
+					UE_LOG(LogTemp, Warning, TEXT("PinVar: SaveToDisk - Cant check out file %s"), *FilePath);
+				}
+			}
+		}
+	}
 	const bool bSaved = FFileHelper::SaveStringToFile(OutStr, *FilePath,
 	                                                  FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 	if (!bSaved)
@@ -284,7 +311,6 @@ void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName, FName Varia
 	NewEntry.AssetPath = FSoftObjectPath(DataAssetInstance);
 
 	Bucket.Add(MoveTemp(NewEntry));
-	SaveToDisk();
 }
 
 bool UPinVarSubsystem::LoadFromDisk()
