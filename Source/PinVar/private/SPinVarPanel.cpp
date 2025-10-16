@@ -1898,6 +1898,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 							if (!G.IsEmpty())
 							{
 								Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
+								Subsystem->MergeStagedIntoPinned();
 								GetAllGroups(S);
 							}
 						}
