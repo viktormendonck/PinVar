@@ -1,5 +1,7 @@
 # PinVar – Pinned Variables Tool for Unreal Engine
 
+# This is the legacy version
+
 ## Overview
 
 **PinVar** is an Unreal Engine 5.6 editor plugin that provides a dedicated editor tab for managing **Blueprint** and **C++** class default variables in one place.
