@@ -124,7 +124,6 @@ void UPinVarSubsystem::MergeStagedIntoPinned()
 
 	// Restore original staged map
 	StagedPinnedGroups = Original;
-	SaveToDisk();
 }
 
 void UPinVarSubsystem::RepopulateSessionCacheAll()

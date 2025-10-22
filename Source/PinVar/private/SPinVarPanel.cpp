@@ -1056,6 +1056,7 @@ FReply SPinVarPanel::OnRemovePinned(FName Class, FName VarName, FName GroupName,
 			
 			Subsystem->UnstagePinVariable(Class, VarName, GroupName, CompName);
 			Subsystem->MergeStagedIntoPinned();
+			Subsystem->SaveToDisk();
 			Refresh(); // rebuild UI
 		}
 	}
@@ -1321,9 +1322,9 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
 								S->DataAssetInstance.Get()
 							);
 							Subsystem->MergeStagedIntoPinned();
+							Subsystem->SaveToDisk();
 						}
 					}
-
 					Refresh();
 					return FReply::Handled();
 				})
@@ -1382,6 +1383,7 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
 							}
 						}
 						Subsystem->MergeStagedIntoPinned();
+						Subsystem->SaveToDisk();
 					}
 					Refresh();
 					return FReply::Handled();
@@ -1811,7 +1813,10 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 						}
 						break;
 					}
-
+					if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+					{
+						Subsystem->SaveToDisk();
+					}
 					Refresh(); // keep dialog open
 					return FReply::Handled();
 				})
@@ -1874,6 +1879,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 										GetAllGroups(S);
 									}
 									Subsystem->MergeStagedIntoPinned();
+									Subsystem->SaveToDisk();
 								}
 								Refresh();
 								return FReply::Handled();
@@ -1898,10 +1904,11 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 							if (!G.IsEmpty())
 							{
 								Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
-								Subsystem->MergeStagedIntoPinned();
 								GetAllGroups(S);
 							}
 						}
+						Subsystem->MergeStagedIntoPinned();
+						Subsystem->SaveToDisk();
 					}
 					Refresh();
 					return FReply::Handled();
