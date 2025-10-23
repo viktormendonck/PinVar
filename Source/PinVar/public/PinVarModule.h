@@ -9,21 +9,21 @@ class SPinVarPanel;
 class FPinVarModule : public IModuleInterface
 {
 public:
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
+    virtual void StartupModule() override;
+    virtual void ShutdownModule() override;
 
 private:
-	TSharedRef<SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
+    TSharedRef<SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
 
-	void RegisterMenus();
-	void UnregisterMenus();
-	void ScanPinnedVariables();
+    void RegisterMenus();
+    void UnregisterMenus();
+    void ScanPinnedVariables();
 
-	bool InitialRefreshOnce(float);
+    bool InitialRefreshOnce(float);
 
 private:
-	FDelegateHandle MenuRegHandle;
-	static const FName PinVarTabName;
+    FDelegateHandle MenuRegHandle;
+    static const FName PinVarTabName;
 
-	TWeakPtr<SPinVarPanel> PanelWeak;
+    TWeakPtr<SPinVarPanel> PanelWeak;
 };

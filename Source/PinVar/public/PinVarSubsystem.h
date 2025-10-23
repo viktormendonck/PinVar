@@ -12,6 +12,8 @@ struct FPinnedVariable
 
     FPinnedVariable(FName InVar, FName InGroup, FName InComp = NAME_None, FName InCompVarPretty = NAME_None, FSoftObjectPath Path = FSoftObjectPath())
         : VariableName(InVar)
+
+
         , GroupName(InGroup)
         , ComponentTemplateName(InComp)
         , ComponentVariablePrettyName(InCompVarPretty)

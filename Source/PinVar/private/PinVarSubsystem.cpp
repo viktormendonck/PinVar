@@ -2,9 +2,6 @@
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "SourceControlOperations.h"
-#include "Interfaces/IPluginManager.h"
-#include "Engine/SimpleConstructionScript.h"
-#include "Engine/SCS_Node.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "Engine/BlueprintGeneratedClass.h"
 
