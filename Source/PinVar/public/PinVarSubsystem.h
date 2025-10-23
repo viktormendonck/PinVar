@@ -21,6 +21,13 @@ struct FPinnedVariable
     {
     }
 
+    bool operator==(const FPinnedVariable& Other) const
+    {
+        return VariableName == Other.VariableName
+               && GroupName == Other.GroupName
+               && ComponentTemplateName == Other.ComponentTemplateName;
+    }
+
     // persisted
     FName VariableName{ NAME_None };
     FName GroupName{ NAME_None };
@@ -38,13 +45,13 @@ class UPinVarSubsystem : public UEditorSubsystem
     GENERATED_BODY()
 
 public:
-    void Initialize(FSubsystemCollectionBase& Collection) override;
+    virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
     TMap<FName, TArray<FPinnedVariable>> PinnedGroups;
 
-    void StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName = NAME_None);
-    void StagePinVariableForDataAsset(FName ClassName, FName VariableName, FName GroupName, UObject* DataAssetInstance);
-    void StagePinVariableWithTemplate(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName, UObject* TemplatePtr, FName ComponentVariablePrettyName = NAME_None);
+    void PinBlueprintVariable(FName ClassName, FName VariableName, FName GroupName);
+    void PinDataAssetVariable(FName ClassName, FName VariableName, FName GroupName, UObject* DataAssetInstance);
+    void PinComponentVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName, UObject* TemplatePtr, FName ComponentVariablePrettyName = NAME_None);
 
     bool UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName = NAME_None);
 
@@ -52,5 +59,4 @@ public:
     bool SaveToDisk() const;
     bool LoadFromDisk();
     static FString GetPinsFilePath();
-    static bool ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName Group, FName Comp);
 };

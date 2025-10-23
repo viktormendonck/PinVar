@@ -1171,7 +1171,7 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
         {
             if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
             {
-                Subsystem->StagePinVariableForDataAsset(
+                Subsystem->PinDataAssetVariable(
                 S->Class->GetFName(),
                 VarName,
                 GroupName,
@@ -1220,7 +1220,7 @@ void SPinVarPanel::ShowAddDialogForDataAsset(UObject* DataAssetInstance)
                 G = G.TrimStartAndEnd();
                 if (!G.IsEmpty())
                 {
-                    Subsystem->StagePinVariableForDataAsset(
+                    Subsystem->PinDataAssetVariable(
                     S->Class->GetFName(),
                     VarName,
                     FName(*G),
@@ -1512,7 +1512,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
         {
             if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
             {
-                Subsystem->StagePinVariable(S->Class->GetFName(), InVar, GroupName, NAME_None);
+                Subsystem->PinBlueprintVariable(S->Class->GetFName(), InVar, GroupName);
             }
         };
 
@@ -1543,7 +1543,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
 
                         if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
                         {
-                            Subsystem->StagePinVariableWithTemplate(
+                            Subsystem->PinComponentVariable(
                             S->Class->GetFName(),
                             VarName,
                             GroupName,
@@ -1615,7 +1615,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
                             {
                                 G = G.TrimStartAndEnd();
                                 if (G.IsEmpty()) continue;
-                                Subsystem->StagePinVariableWithTemplate(
+                                Subsystem->PinComponentVariable(
                                 S->Class->GetFName(),
                                 VarName,
                                 FName(*G),
@@ -1648,7 +1648,7 @@ void SPinVarPanel::ShowAddDialog(UBlueprint* BP)
                 G = G.TrimStartAndEnd();
                 if (!G.IsEmpty())
                 {
-                    Subsystem->StagePinVariable(S->Class->GetFName(), VarName, FName(*G), CompName);
+                    Subsystem->PinBlueprintVariable(S->Class->GetFName(), VarName, FName(*G));
                     GetAllGroups(S);
                 }
             }

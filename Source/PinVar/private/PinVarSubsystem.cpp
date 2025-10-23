@@ -2,20 +2,10 @@
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
 #include "SourceControlOperations.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/SCS_Node.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "Engine/BlueprintGeneratedClass.h"
-
-bool UPinVarSubsystem::ContainsTriple(const TArray<FPinnedVariable>& Arr, FName Var, FName Group, FName Comp)
-{
-    for (const FPinnedVariable& E : Arr)
-    {
-        if (E.VariableName == Var && E.GroupName == Group && E.ComponentTemplateName == Comp)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -23,44 +13,39 @@ void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     LoadFromDisk();
 }
 
-void UPinVarSubsystem::StagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
+void UPinVarSubsystem::PinBlueprintVariable(FName ClassName, FName VariableName, FName GroupName)
 {
     TArray<FPinnedVariable>& Vars = PinnedGroups.FindOrAdd(ClassName);
-    if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
+    if (Vars.Find(FPinnedVariable{ VariableName, GroupName }) == INDEX_NONE)
     {
-        Vars.Add(FPinnedVariable(VariableName, GroupName, ComponentTemplateName));
+        Vars.Add(FPinnedVariable(VariableName, GroupName));
     }
 }
 
-void UPinVarSubsystem::StagePinVariableWithTemplate(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName, UObject* TemplatePtr, FName ComponentVariablePrettyName)
+void UPinVarSubsystem::PinComponentVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName, UObject* TemplatePtr, FName ComponentVariablePrettyName)
 {
     TArray<FPinnedVariable>& Vars = PinnedGroups.FindOrAdd(ClassName);
-    if (!ContainsTriple(Vars, VariableName, GroupName, ComponentTemplateName))
+    if (Vars.Find(FPinnedVariable{ VariableName, GroupName, ComponentTemplateName }) == INDEX_NONE)
     {
-        FPinnedVariable E(VariableName, GroupName, ComponentTemplateName, ComponentVariablePrettyName);
-        E.ResolvedTemplate = TemplatePtr;
-        Vars.Add(MoveTemp(E));
+        UE_LOG(LogTemp, Error, TEXT("pretty: %s, templateName: %s"), *ComponentVariablePrettyName.ToString(), *ComponentTemplateName.ToString());
+        FPinnedVariable NewPin(VariableName, GroupName, ComponentTemplateName, ComponentVariablePrettyName);
+        NewPin.ResolvedTemplate = TemplatePtr;
+        Vars.Add(MoveTemp(NewPin));
     }
 }
 
-void UPinVarSubsystem::StagePinVariableForDataAsset(FName ClassName, FName VariableName, FName GroupName, UObject* DataAssetInstance)
+void UPinVarSubsystem::PinDataAssetVariable(FName ClassName, FName VariableName, FName GroupName, UObject* DataAssetInstance)
 {
-    TArray<FPinnedVariable>& Bucket = PinnedGroups.FindOrAdd(ClassName);
+    TArray<FPinnedVariable>& Vars = PinnedGroups.FindOrAdd(ClassName);
 
     const FString PathStr = DataAssetInstance->GetPathName();
 
-    for (const FPinnedVariable& E : Bucket)
+    if (Vars.Find(FPinnedVariable{ VariableName, GroupName }) == INDEX_NONE)
     {
-        if (E.VariableName == VariableName && E.GroupName == GroupName && E.AssetPath.ToString() == PathStr)
-        {
-            return;
-        }
+        FPinnedVariable NewEntry(VariableName, GroupName);
+        NewEntry.AssetPath = FSoftObjectPath(DataAssetInstance);
+        Vars.Add(MoveTemp(NewEntry));
     }
-
-    FPinnedVariable NewEntry(VariableName, GroupName);
-    NewEntry.AssetPath = FSoftObjectPath(DataAssetInstance);
-
-    Bucket.Add(MoveTemp(NewEntry));
 }
 
 bool UPinVarSubsystem::UnstagePinVariable(FName ClassName, FName VariableName, FName GroupName, FName ComponentTemplateName)
@@ -246,3 +231,4 @@ bool UPinVarSubsystem::LoadFromDisk()
     }
     return true;
 }
+
