@@ -11,6 +11,7 @@ void UPinVarSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     LoadFromDisk();
+    RepopulateSessionCacheAll();
 }
 
 void UPinVarSubsystem::PinBlueprintVariable(FName ClassName, FName VariableName, FName GroupName)
@@ -232,3 +233,57 @@ bool UPinVarSubsystem::LoadFromDisk()
     return true;
 }
 
+void UPinVarSubsystem::RepopulateSessionCacheAll()
+{
+    for (auto& Pair : PinnedGroups)
+    {
+        const FName ClassName = Pair.Key;
+        UClass* Cls = FindFirstObjectSafe<UClass>(*ClassName.ToString());
+        if (!Cls) continue;
+
+        for (FPinnedVariable& E : Pair.Value)
+        {
+            if (!E.ComponentTemplateName.IsNone())
+            {
+                UObject* Found = nullptr;
+
+                // Try CDO first
+                if (UObject* CDO = Cls->GetDefaultObject(true))
+                {
+                    Found = CDO->GetDefaultSubobjectByName(E.ComponentTemplateName);
+                }
+
+                // Try SCS pretty name
+                if (!Found && !E.ComponentVariablePrettyName.IsNone())
+                {
+                    for (UClass* C = Cls; C; C = C->GetSuperClass())
+                    {
+                        UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(C);
+                        if (!BPGC) continue;
+
+                        UBlueprint* OwnerBP = Cast<UBlueprint>(BPGC->ClassGeneratedBy);
+                        if (!OwnerBP) continue;
+
+                        USimpleConstructionScript* SCS = OwnerBP->SimpleConstructionScript;
+                        if (!SCS) continue;
+
+                        for (USCS_Node* Node : SCS->GetAllNodes())
+                        {
+                            if (!Node || Node->GetVariableName() != E.ComponentVariablePrettyName) continue;
+
+                            Found = Node->GetActualComponentTemplate(BPGC);
+                            if (!Found)
+                            {
+                                Found = Node->ComponentTemplate;
+                            }
+                            break;
+                        }
+                        if (Found) break;
+                    }
+                }
+
+                E.ResolvedTemplate = Found;
+            }
+        }
+    }
+}

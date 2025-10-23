@@ -320,6 +320,13 @@ void SPinVarPanel::Refresh()
     {
         OnRefreshRequested.Execute();
     }
+    if (GEditor)
+    {
+        if (UPinVarSubsystem* Subsystem = GEditor->GetEditorSubsystem<UPinVarSubsystem>())
+        {
+            Subsystem->RepopulateSessionCacheAll();
+        }
+    }
 
     Grouped.Reset();
     Rebuild();

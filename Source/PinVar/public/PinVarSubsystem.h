@@ -59,4 +59,5 @@ public:
     bool SaveToDisk() const;
     bool LoadFromDisk();
     static FString GetPinsFilePath();
+    void RepopulateSessionCacheAll();
 };
